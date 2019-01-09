@@ -18,8 +18,6 @@ package com.yahoo.ycsb.db.etcd;
 
 import com.yahoo.ycsb.*;
 
-import javax.cache.processor.EntryProcessorException;
-import javax.cache.processor.MutableEntry;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -35,16 +33,6 @@ import org.apache.logging.log4j.Logger;
 public class EtcdClient extends EtcdAbstractClient {
   /** */
   private static Logger log = LogManager.getLogger(EtcdClient.class);
-
-
-
-  /** Cached binary type. */
-  private BinaryType binType = null;
-  /** Cached binary type's fields. */
-  private final ConcurrentHashMap<String, BinaryField> fieldsCache = new ConcurrentHashMap<>();
-
-
-
 
   /**
    * Read a record from the database. Each field/value pair from the result will
@@ -62,35 +50,9 @@ public class EtcdClient extends EtcdAbstractClient {
 
     log.info("pengdu reading");
     try {
-      BinaryObject po = cache.get(key);
-
-      if (po == null) {
-        return Status.NOT_FOUND;
-      }
-
-      if (binType == null) {
-        binType = po.type();
-      }
-
-      for (String s : F.isEmpty(fields) ? binType.fieldNames() : fields) {
-        BinaryField bfld = fieldsCache.get(s);
-
-        if (bfld == null) {
-          bfld = binType.field(s);
-          fieldsCache.put(s, bfld);
-        }
-
-        String val = bfld.value(po);
-        if (val != null) {
-          result.put(s, new StringByteIterator(val));
-        }
-
-        if (debug) {
-          log.info("table:{" + table + "}, key:{" + key + "}" + ", fields:{" + fields + "}");
-          log.info("fields in po{" + binType.fieldNames() + "}");
-          log.info("result {" + result + "}");
-        }
-      }
+      /*
+      main code
+       */
 
       return Status.OK;
 
@@ -115,8 +77,9 @@ public class EtcdClient extends EtcdAbstractClient {
   public Status update(String table, String key,
                        Map<String, ByteIterator> values) {
     try {
-      cache.invoke(key, new Updater(values));
-
+      /*
+      main code
+       */
       return Status.OK;
     } catch (Exception e) {
       log.error(String.format("Error updating key: %s", key), e);
@@ -141,24 +104,10 @@ public class EtcdClient extends EtcdAbstractClient {
 
     log.info("pengdu inserting");
     try {
-      BinaryObjectBuilder bob = cluster.binary().builder("CustomType");
 
-      for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
-        bob.setField(entry.getKey(), entry.getValue().toString());
-
-        if (debug) {
-          log.info(entry.getKey() + ":" + entry.getValue());
-        }
-      }
-
-      BinaryObject bo = bob.build();
-
-      if (table.equals(DEFAULT_CACHE_NAME)) {
-        cache.put(key, bo);
-      } else {
-        throw new UnsupportedOperationException("Unexpected table name: " + table);
-      }
-
+      /*
+      main code
+       */
       return Status.OK;
     } catch (Exception e) {
       log.error(String.format("Error inserting key: %s", key), e);
@@ -177,52 +126,14 @@ public class EtcdClient extends EtcdAbstractClient {
   @Override
   public Status delete(String table, String key) {
     try {
-      cache.remove(key);
+      /*
+      main code
+       */
       return Status.OK;
     } catch (Exception e) {
       log.error(String.format("Error deleting key: %s ", key), e);
     }
 
     return Status.ERROR;
-  }
-
-  /**
-   * Entry processor to update values.
-   */
-  public static class Updater implements CacheEntryProcessor<String, BinaryObject, Object> {
-    private String[] flds;
-    private String[] vals;
-
-    /**
-     * @param values Updated fields.
-     */
-    Updater(Map<String, ByteIterator> values) {
-      flds = new String[values.size()];
-      vals = new String[values.size()];
-
-      int idx = 0;
-      for (Map.Entry<String, ByteIterator> e : values.entrySet()) {
-        flds[idx] = e.getKey();
-        vals[idx] = e.getValue().toString();
-        ++idx;
-      }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Object process(MutableEntry<String, BinaryObject> mutableEntry, Object... objects)
-              throws EntryProcessorException {
-      BinaryObjectBuilder bob = mutableEntry.getValue().toBuilder();
-
-      for (int i = 0; i < flds.length; ++i) {
-        bob.setField(flds[i], vals[i]);
-      }
-
-      mutableEntry.setValue(bob.build());
-
-      return null;
-    }
   }
 }

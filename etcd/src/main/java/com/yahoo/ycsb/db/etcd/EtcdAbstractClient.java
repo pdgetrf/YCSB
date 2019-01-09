@@ -50,15 +50,8 @@ public abstract class EtcdAbstractClient extends DB {
    * {@link #cleanup()}.
    */
   protected static final AtomicInteger INIT_COUNT = new AtomicInteger(0);
-  /** Etcd cluster. */
-  protected static Ignite cluster = null;
-  /** Ignite cache to store key-values. */
-  protected static IgniteCache<String, BinaryObject> cache = null;
   /** Debug flag. */
   protected static boolean debug = false;
-
-  protected static TcpDiscoveryIpFinder ipFinder = new TcpDiscoveryVmIpFinder(true);
-
 
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one
@@ -74,61 +67,8 @@ public abstract class EtcdAbstractClient extends DB {
     // cluster/session instance for all the threads.
     synchronized (INIT_COUNT) {
 
-      // Check if the cluster has already been initialized
-      if (cluster != null) {
-        return;
-      }
-
       try {
-        debug = Boolean.parseBoolean(getProperties().getProperty("debug", "false"));
-
-        IgniteConfiguration igcfg = new IgniteConfiguration();
-        igcfg.setIgniteInstanceName(CLIENT_NODE_NAME);
-
-        String host = getProperties().getProperty(HOSTS_PROPERTY);
-        if (host == null) {
-          throw new DBException(String.format(
-              "Required property \"%s\" missing for Ignite Cluster",
-              HOSTS_PROPERTY));
-        }
-
-        String ports = getProperties().getProperty(PORTS_PROPERTY, PORTS_DEFAULTS);
-
-        if (ports == null) {
-          throw new DBException(String.format(
-              "Required property \"%s\" missing for Ignite Cluster",
-              PORTS_PROPERTY));
-
-        }
-
-        System.setProperty("IGNITE_QUIET", "false");
-
-        TcpDiscoverySpi disco = new TcpDiscoverySpi();
-
-        Collection<String> addrs = new LinkedHashSet<>();
-        addrs.add(host + ":" + ports);
-
-        ((TcpDiscoveryVmIpFinder) ipFinder).setAddresses(addrs);
-        disco.setIpFinder(ipFinder);
-
-        igcfg.setDiscoverySpi(disco);
-        igcfg.setNetworkTimeout(2000);
-        igcfg.setClientMode(true);
-
-        Log4J2Logger logger = new Log4J2Logger(this.getClass().getClassLoader().getResource("log4j2.xml"));
-        igcfg.setGridLogger(logger);
-
-        log.info("Start Ignite client node.");
-        cluster = Ignition.start(igcfg);
-
-        log.info("Activate Ignite cluster.");
-        cluster.active(true);
-
-        cache = cluster.cache(DEFAULT_CACHE_NAME).withKeepBinary();
-
-        if(cache == null) {
-          throw new DBException(new IgniteCheckedException("Failed to find cache " + DEFAULT_CACHE_NAME));
-        }
+        /* main code */
       } catch (Exception e) {
         throw new DBException(e);
       }
@@ -145,8 +85,6 @@ public abstract class EtcdAbstractClient extends DB {
       final int curInitCount = INIT_COUNT.decrementAndGet();
 
       if (curInitCount <= 0) {
-        cluster.close();
-        cluster = null;
       }
 
       if (curInitCount < 0) {
