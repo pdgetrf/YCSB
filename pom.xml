@@ -144,6 +144,7 @@ LICENSE file.
     <module>hbase20</module>
     <module>hypertable</module>
     <module>ignite</module>
+    <module>etcd</module>
     <module>infinispan</module>
     <module>jdbc</module>
     <module>kudu</module>

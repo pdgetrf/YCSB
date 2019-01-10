@@ -21,14 +21,13 @@ import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.DBException;
 import com.yahoo.ycsb.Status;
-import java.util.Collection;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Etcd abstract client.
@@ -69,6 +68,7 @@ public abstract class EtcdAbstractClient extends DB {
 
       try {
         /* main code */
+        log.info("peng: init");
       } catch (Exception e) {
         throw new DBException(e);
       }
@@ -84,8 +84,11 @@ public abstract class EtcdAbstractClient extends DB {
     synchronized (INIT_COUNT) {
       final int curInitCount = INIT_COUNT.decrementAndGet();
 
+      /*
       if (curInitCount <= 0) {
+
       }
+      */
 
       if (curInitCount < 0) {
         // This should never happen.

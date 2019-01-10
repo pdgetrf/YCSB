@@ -16,13 +16,19 @@
  */
 package com.yahoo.ycsb.db.etcd;
 
-import com.yahoo.ycsb.*;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-
+import com.coreos.jetcd.Client;
+import com.coreos.jetcd.data.ByteSequence;
+import com.coreos.jetcd.kv.GetResponse;
+import com.coreos.jetcd.options.GetOption;
+import com.yahoo.ycsb.ByteIterator;
+import com.yahoo.ycsb.Status;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.util.Map;
+import java.util.Set;
+
+import static com.google.common.base.Charsets.UTF_8;
 
 
 /**
@@ -48,11 +54,21 @@ public class EtcdClient extends EtcdAbstractClient {
   public Status read(String table, String key, Set<String> fields,
                      Map<String, ByteIterator> result) {
 
+    String endpoints = "http://127.0.0.1:2379";
+
+
     log.info("pengdu reading");
     try {
-      /*
-      main code
-       */
+      Client client = Client.builder().endpoints(endpoints.split(",")).build();
+
+      GetResponse getResponse = client.getKVClient().get(
+          ByteSequence.fromString(key),
+          GetOption.newBuilder().withRevision(0).build()
+      ).get();
+
+
+      log.info(key);
+      log.info(getResponse.getKvs().get(0).getValue().toString(UTF_8));
 
       return Status.OK;
 
