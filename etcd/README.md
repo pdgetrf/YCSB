@@ -65,12 +65,19 @@ Return code: NOT_FOUND
 
 ## To load tests
 
-bin/ycsb load ignite -p hosts="127.0.0.1" -s -P workloads/workloada -threads 4 -p operationcount=100000 -p recordcount=100000
+```
+size=10000
+
+bin/ycsb load etcd -p hosts="http://127.0.0.1:2379" -s -P workloads/workloada -threads 4 -p operationcount=$size -p recordcount=$size
+```
 
 ## To run tests
 
-bin/ycsb run etcd -p hosts="http://127.0.0.1:2379" -s -P workloads/workloada -threads 4 -p operationcount=100000 -p recordcount=100000 -p exportfile=/tmp/output.txt
+```
+size=10000
 
+bin/ycsb run etcd -p hosts="http://127.0.0.1:2379" -s -P workloads/workloada -threads 4 -p operationcount=$size -p recordcount=$size -p exportfile=/tmp/output.txt
+```
 
 ## Issues
 
