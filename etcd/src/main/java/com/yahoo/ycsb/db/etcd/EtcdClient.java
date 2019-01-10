@@ -62,7 +62,7 @@ public class EtcdClient extends EtcdAbstractClient {
       Client client = Client.builder().endpoints(endpoints.split(",")).build();
 
       GetResponse getResponse = client.getKVClient().get(
-          ByteSequence.fromString(key),
+          ByteSequence.fromString("fat"),
           GetOption.newBuilder().withRevision(0).build()
       ).get();
 
@@ -118,12 +118,17 @@ public class EtcdClient extends EtcdAbstractClient {
   public Status insert(String table, String key,
                        Map<String, ByteIterator> values) {
 
-    log.info("pengdu inserting");
+
+    String endpoints = "http://127.0.0.1:2379";
+
     try {
 
-      /*
-      main code
-       */
+      Client client = Client.builder().endpoints(endpoints.split(",")).build();
+      client.getKVClient().put(
+          ByteSequence.fromString("hello"),
+          ByteSequence.fromString("world")
+      ).get();
+
       return Status.OK;
     } catch (Exception e) {
       log.error(String.format("Error inserting key: %s", key), e);
