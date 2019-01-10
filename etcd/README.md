@@ -39,14 +39,14 @@ Commands:
 > read /a/b/c
 Return code: NOT_FOUND
 334 ms
-> insert /a/b/c =hello
+> insert /a/b/c =hello # note there are TWO spaces before "=" and no space between "=" and "world". same with update
 Result: OK
 7 ms
 > read /a/b/c
 Return code: OK
 /a/b/c=hello
 4 ms
-> update /a/b/c =world # note there are TWO spaces before "=" and no space between "=" and "world"
+> update /a/b/c =world
 Result: OK
 3 ms
 > read /a/b/c
