@@ -63,9 +63,14 @@ public class EtcdClient extends EtcdAbstractClient {
     }
 
     try {
+      String path = (key != null && !key.isEmpty()) ? (key + "/") : "";
+
       for (String field : fields) {
+
+        String itemPath = path + field;
+
         GetResponse getResponse = client.getKVClient().get(
-            ByteSequence.fromString(field),
+            ByteSequence.fromString(itemPath),
             GetOption.newBuilder().withRevision(0).build()
         ).get();
 
@@ -75,7 +80,7 @@ public class EtcdClient extends EtcdAbstractClient {
         }
 
         String val = kvs.get(0).getValue().toString(UTF_8);
-        result.put(field, new StringByteIterator(val));
+        result.put(itemPath, new StringByteIterator(val));
       }
 
       return Status.OK;
