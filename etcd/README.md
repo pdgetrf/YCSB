@@ -46,7 +46,7 @@ Result: OK
 Return code: OK
 /a/b/c=hello
 4 ms
-> update /a/b/c =world
+> update /a/b/c =world # note there are TWO spaces before "=" and no space between "=" and "world"
 Result: OK
 3 ms
 > read /a/b/c
