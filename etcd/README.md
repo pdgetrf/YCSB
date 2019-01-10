@@ -11,7 +11,7 @@ From ETCD directory:
 From YCSB directory:
 
 ```
-	mvn clean package -pl etcd -am -DskipTests
+  mvn clean package -pl etcd -am -DskipTests
 ```
 
 ## To test in shell
@@ -19,7 +19,7 @@ From YCSB directory:
 From YCSB directory:
 	
 ```
-	bin/ycsb shell etcd -p hosts="http://127.0.0.1:2379"
+  bin/ycsb shell etcd -p hosts="http://127.0.0.1:2379"
 ```
 
 Example session:
