@@ -12,7 +12,7 @@ From YCSB directory:
 
 Example session:
 
-----------------------
+```
 Connected.
 > help
 Commands:
@@ -44,7 +44,7 @@ Return result: OK
 > read key c
 Return code: OK
 6 ms
-----------------------
+```
 
 ## To load tests
 
