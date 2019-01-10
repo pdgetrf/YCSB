@@ -155,14 +155,13 @@ public class EtcdClient extends EtcdAbstractClient {
   @Override
   public Status delete(String table, String key) {
     try {
-      /*
-      main code
-       */
+      client.getKVClient().delete(
+          ByteSequence.fromString(key)).get();
+
       return Status.OK;
     } catch (Exception e) {
       log.error(String.format("Error deleting key: %s ", key), e);
+      return Status.ERROR;
     }
-
-    return Status.ERROR;
   }
 }
