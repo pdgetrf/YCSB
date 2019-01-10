@@ -63,7 +63,6 @@ public class EtcdClient extends EtcdAbstractClient {
     }
 
     try {
-
       for (String field : fields) {
         GetResponse getResponse = client.getKVClient().get(
             ByteSequence.fromString(field),
@@ -100,14 +99,21 @@ public class EtcdClient extends EtcdAbstractClient {
   @Override
   public Status update(String table, String key,
                        Map<String, ByteIterator> values) {
+
+    if (values == null && values.isEmpty()) {
+      return Status.ERROR;
+    }
+
     try {
-      /*
-      main code
-       */
+      for (String keyToInsert : values.keySet()) {
+        client.getKVClient().put(
+            ByteSequence.fromString(keyToInsert),
+            ByteSequence.fromString(values.get(keyToInsert).toString())
+        ).get();
+      }
       return Status.OK;
     } catch (Exception e) {
       log.error(String.format("Error updating key: %s", key), e);
-
       return Status.ERROR;
     }
   }
