@@ -17,6 +17,7 @@
 
 package com.yahoo.ycsb.db.etcd;
 
+import com.coreos.jetcd.Client;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.DB;
 import com.yahoo.ycsb.DBException;
@@ -35,21 +36,24 @@ import java.util.concurrent.atomic.AtomicInteger;
  * See {@code ignite/README.md} for details.
  */
 public abstract class EtcdAbstractClient extends DB {
-  /** */
+  /**
+   *
+   */
   protected static Logger log = LogManager.getLogger(EtcdAbstractClient.class);
 
-  protected static final String DEFAULT_CACHE_NAME = "usertable";
   protected static final String HOSTS_PROPERTY = "hosts";
-  protected static final String PORTS_PROPERTY = "ports";
-  protected static final String CLIENT_NODE_NAME = "YCSB client node";
-  protected static final String PORTS_DEFAULTS = "47500..47509";
 
+  protected String hosts = "127.0.0.1:2379";
+
+  protected Client client;
   /**
    * Count the number of times initialized to teardown on the last
    * {@link #cleanup()}.
    */
   protected static final AtomicInteger INIT_COUNT = new AtomicInteger(0);
-  /** Debug flag. */
+  /**
+   * Debug flag.
+   */
   protected static boolean debug = false;
 
   /**
@@ -67,8 +71,14 @@ public abstract class EtcdAbstractClient extends DB {
     synchronized (INIT_COUNT) {
 
       try {
-        /* main code */
-        log.info("peng: init");
+        hosts = getProperties().getProperty(HOSTS_PROPERTY);
+        if (hosts == null) {
+          throw new DBException(String.format(
+              "Required property \"%s\" missing for Ignite Cluster",
+              HOSTS_PROPERTY));
+        }
+        client = Client.builder().endpoints(hosts.split(",")).build();
+
       } catch (Exception e) {
         throw new DBException(e);
       }

@@ -16,15 +16,17 @@
  */
 package com.yahoo.ycsb.db.etcd;
 
-import com.coreos.jetcd.Client;
 import com.coreos.jetcd.data.ByteSequence;
+import com.coreos.jetcd.data.KeyValue;
 import com.coreos.jetcd.kv.GetResponse;
 import com.coreos.jetcd.options.GetOption;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.Status;
+import com.yahoo.ycsb.StringByteIterator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,7 +39,9 @@ import static com.google.common.base.Charsets.UTF_8;
  * See {@code etcd/README.md} for details.
  */
 public class EtcdClient extends EtcdAbstractClient {
-  /** */
+  /**
+   *
+   */
   private static Logger log = LogManager.getLogger(EtcdClient.class);
 
   /**
@@ -54,27 +58,31 @@ public class EtcdClient extends EtcdAbstractClient {
   public Status read(String table, String key, Set<String> fields,
                      Map<String, ByteIterator> result) {
 
-    String endpoints = "http://127.0.0.1:2379";
+    if (fields == null && fields.isEmpty()) {
+      return Status.ERROR;
+    }
 
-
-    log.info("pengdu reading");
     try {
-      Client client = Client.builder().endpoints(endpoints.split(",")).build();
 
-      GetResponse getResponse = client.getKVClient().get(
-          ByteSequence.fromString("fat"),
-          GetOption.newBuilder().withRevision(0).build()
-      ).get();
+      for (String field : fields) {
+        GetResponse getResponse = client.getKVClient().get(
+            ByteSequence.fromString(field),
+            GetOption.newBuilder().withRevision(0).build()
+        ).get();
 
+        List<KeyValue> kvs = getResponse.getKvs();
+        if (kvs == null || kvs.isEmpty()) {
+          continue;
+        }
 
-      log.info(key);
-      log.info(getResponse.getKvs().get(0).getValue().toString(UTF_8));
+        String val = kvs.get(0).getValue().toString(UTF_8);
+        result.put(field, new StringByteIterator(val));
+      }
 
       return Status.OK;
 
     } catch (Exception e) {
       log.error(String.format("Error reading key: %s", key), e);
-
       return Status.ERROR;
     }
   }
@@ -118,23 +126,23 @@ public class EtcdClient extends EtcdAbstractClient {
   public Status insert(String table, String key,
                        Map<String, ByteIterator> values) {
 
-
-    String endpoints = "http://127.0.0.1:2379";
-
-    try {
-
-      Client client = Client.builder().endpoints(endpoints.split(",")).build();
-      client.getKVClient().put(
-          ByteSequence.fromString("hello"),
-          ByteSequence.fromString("world")
-      ).get();
-
-      return Status.OK;
-    } catch (Exception e) {
-      log.error(String.format("Error inserting key: %s", key), e);
-
+    if (values == null && values.isEmpty()) {
       return Status.ERROR;
     }
+
+    try {
+      for (String keyToInsert : values.keySet()) {
+        client.getKVClient().put(
+            ByteSequence.fromString(keyToInsert),
+            ByteSequence.fromString(values.get(keyToInsert).toString())
+        ).get();
+      }
+    } catch (Exception e) {
+      log.error(String.format("Error inserting key: %s", key), e);
+      return Status.ERROR;
+    }
+
+    return Status.OK;
   }
 
   /**
