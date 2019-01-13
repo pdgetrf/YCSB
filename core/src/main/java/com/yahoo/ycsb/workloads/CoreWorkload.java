@@ -550,6 +550,7 @@ public class CoreWorkload extends Workload {
    * Builds values for all fields.
    */
   private HashMap<String, ByteIterator> buildValues(String key) {
+
     HashMap<String, ByteIterator> values = new HashMap<>();
 
     for (String fieldkey : fieldnames) {
@@ -562,6 +563,7 @@ public class CoreWorkload extends Workload {
       }
       values.put(fieldkey, data);
     }
+
     return values;
   }
 
@@ -599,6 +601,7 @@ public class CoreWorkload extends Workload {
     int numOfRetries = 0;
     do {
       status = db.insert(table, dbkey, values);
+      System.out.println("----- inserting " + dbkey + " " + values.toString());
       if (null != status && status.isOk()) {
         break;
       }
@@ -639,6 +642,8 @@ public class CoreWorkload extends Workload {
       return false;
     }
 
+    System.out.println("++++ ops = " + operation);
+
     switch (operation) {
     case "READ":
       doTransactionRead(db);
@@ -673,6 +678,10 @@ public class CoreWorkload extends Workload {
       for (Map.Entry<String, ByteIterator> entry : cells.entrySet()) {
         if (!entry.getValue().toString().equals(buildDeterministicValue(key, entry.getKey()))) {
           verifyStatus = Status.UNEXPECTED_STATE;
+
+          System.err.println(key + " " + entry.getKey());
+          System.err.println(entry.getValue().toString() + " vs " + buildDeterministicValue(key, entry.getKey()));
+
           break;
         }
       }

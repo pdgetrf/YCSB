@@ -60,18 +60,26 @@ public class EtcdClient extends EtcdAbstractClient {
 
     try {
 
-      GetResponse getResponse = client.getKVClient().get(
-          ByteSequence.fromString(key),
-          GetOption.newBuilder().withRevision(0).build()
-      ).get();
+      for (String field : fields) {
 
-      List<KeyValue> kvs = getResponse.getKvs();
-      if (kvs == null || kvs.isEmpty()) {
-        return Status.NOT_FOUND;
+        String path = "/" + key + "/" + field;
+
+        GetResponse getResponse = client.getKVClient().get(
+            ByteSequence.fromString(path),
+            GetOption.newBuilder().withRevision(0).build()
+        ).get();
+
+        List<KeyValue> kvs = getResponse.getKvs();
+        if (kvs == null || kvs.isEmpty()) {
+          return Status.NOT_FOUND;
+        }
+
+        String val = kvs.get(0).getValue().toString(UTF_8);
+        result.put(field, new StringByteIterator(val));
+
+        log.info("found " + path + " : " + result.get(field));
+
       }
-
-      String val = kvs.get(0).getValue().toString(UTF_8);
-      result.put(key, new StringByteIterator(val));
 
     } catch (Exception e) {
       log.error(String.format("Error reading key: %s", key), e);
@@ -118,11 +126,12 @@ public class EtcdClient extends EtcdAbstractClient {
 
     try {
       for (String keyToInsert : values.keySet()) {
+        String path = "/" + key + "/" + keyToInsert;
+        log.info("inserting " + path + " : " + values.get(keyToInsert).toString());
         client.getKVClient().put(
-            ByteSequence.fromString(key),
+            ByteSequence.fromString(path),
             ByteSequence.fromString(values.get(keyToInsert).toString())
         ).get();
-        break; // only take the first element
       }
     } catch (Exception e) {
       log.error(String.format("Error inserting key: %s", key), e);
@@ -140,10 +149,31 @@ public class EtcdClient extends EtcdAbstractClient {
    */
   @Override
   public Status delete(String table, String key) {
+
+    String path = "/" + key + "/";
+    ByteSequence keySeq = ByteSequence.fromString(path);
+
+    GetOption option = GetOption.newBuilder()
+        .withSortField(GetOption.SortTarget.KEY)
+        .withSortOrder(GetOption.SortOrder.DESCEND)
+        .withPrefix(keySeq)
+        .build();
+
+    log.info("reading " + path);
+
     try {
-      client.getKVClient().delete(
-          ByteSequence.fromString(key)).get();
+      GetResponse response = client.getKVClient().get(keySeq, option).get();
+      if (response.getKvs().isEmpty()) {
+        log.info("Failed to retrieve any key.");
+        return null;
+      }
+
+      for (KeyValue kv : response.getKvs()) {
+        log.info("deleting " + kv.getKey().toStringUtf8() + " " + kv.getValue().toStringUtf8());
+        client.getKVClient().delete(kv.getKey()).get();
+      }
       return Status.OK;
+
     } catch (Exception e) {
       log.error(String.format("Error deleting key: %s ", key), e);
       return Status.ERROR;
