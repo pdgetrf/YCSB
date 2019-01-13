@@ -601,7 +601,6 @@ public class CoreWorkload extends Workload {
     int numOfRetries = 0;
     do {
       status = db.insert(table, dbkey, values);
-      System.out.println("----- inserting " + dbkey + " " + values.toString());
       if (null != status && status.isOk()) {
         break;
       }
@@ -641,8 +640,6 @@ public class CoreWorkload extends Workload {
     if(operation == null) {
       return false;
     }
-
-    System.out.println("++++ ops = " + operation);
 
     switch (operation) {
     case "READ":
