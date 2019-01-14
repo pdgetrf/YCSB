@@ -59,7 +59,6 @@ public class EtcdClient extends EtcdAbstractClient {
                      Map<String, ByteIterator> result) {
 
     try {
-
       Map<CompletableFuture<GetResponse>, String> responseMap = new HashMap<>();
       for (String field : fields) {
         String path = "/" + key + "/" + field;
@@ -71,10 +70,9 @@ public class EtcdClient extends EtcdAbstractClient {
       }
 
       // wait for all requests
-      List<CompletableFuture<GetResponse>> responseList = new ArrayList<>();
-      responseList.addAll(responseMap.keySet());
-      responseList.forEach(CompletableFuture::join);
+      responseMap.keySet().forEach(CompletableFuture::join);
 
+      // create the result
       for (Map.Entry<CompletableFuture<GetResponse>, String> entry : responseMap.entrySet()) {
 
         List<KeyValue> kvs = entry.getKey().get().getKvs();
@@ -85,12 +83,10 @@ public class EtcdClient extends EtcdAbstractClient {
         String val = kvs.get(0).getValue().toString(UTF_8);
         result.put(entry.getValue(), new StringByteIterator(val));
       }
-
     } catch (Exception e) {
       log.error(String.format("Error reading key: %s", key), e);
       return Status.ERROR;
     }
-
     return Status.OK;
   }
 
@@ -142,9 +138,7 @@ public class EtcdClient extends EtcdAbstractClient {
       }
 
       // wait for all requests
-      List<CompletableFuture<PutResponse>> responseList = new ArrayList<>();
-      responseList.addAll(responseMap.keySet());
-      responseList.forEach(CompletableFuture::join);
+      responseMap.keySet().forEach(CompletableFuture::join);
     } catch (Exception e) {
       log.error(String.format("Error inserting key: %s", key), e);
       return Status.ERROR;
