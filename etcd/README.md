@@ -86,6 +86,8 @@ size=10000
 bin/ycsb run etcd -p hosts="http://127.0.0.1:2379" -s -P workloads/workloada -threads 4 -p operationcount=$size -p recordcount=$size -p exportfile=/tmp/output.txt -p dataintegrity=true
 ```
 
+It is okay to run test multiple times with the same load.
+
 ## Data validation
 
 In the output.txt producted by 'run etcd', the following seciton shows up with "-p dataintegrity=true" in the run command above.
