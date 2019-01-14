@@ -675,10 +675,6 @@ public class CoreWorkload extends Workload {
       for (Map.Entry<String, ByteIterator> entry : cells.entrySet()) {
         if (!entry.getValue().toString().equals(buildDeterministicValue(key, entry.getKey()))) {
           verifyStatus = Status.UNEXPECTED_STATE;
-
-          System.err.println(key + " " + entry.getKey());
-          System.err.println(entry.getValue().toString() + " vs " + buildDeterministicValue(key, entry.getKey()));
-
           break;
         }
       }
