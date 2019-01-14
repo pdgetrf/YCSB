@@ -35,30 +35,37 @@ Commands:
   delete key - Delete a record
   table [tablename] - Get or [set] the name of the table
   quit - Quit
->
-> read /a/b/c
-Return code: NOT_FOUND
-334 ms
-> insert /a/b/c =hello # note there are TWO white spaces before "=" and no space between "=" and "world". same with update
+> insert x a=1 b=2 # data is inserted into etcd as /x/a and /x/b
 Result: OK
-7 ms
-> read /a/b/c
+328 ms
+> read x a
 Return code: OK
-/a/b/c=hello
+a=1
+12 ms
+> read x b
+Return code: OK
+b=2
+3 ms
+> update x b=3
+Result: OK
 4 ms
-> update /a/b/c =world
-Result: OK
-3 ms
-> read /a/b/c
+> read x b
 Return code: OK
-/a/b/c=world
-3 ms
-> delete /a/b/c
+b=3
+4 ms
+> read x a
+Return code: OK
+a=1
+4 ms
+> delete x # this will delete all record under /x
 Return result: OK
-9 ms
-> read /a/b/c
+21 ms
+> read x a
 Return code: NOT_FOUND
-2 ms
+5 ms
+> read x b
+Return code: NOT_FOUND
+5 ms
 > quit
 ~/work/YCSB$
 ```
@@ -76,13 +83,31 @@ bin/ycsb load etcd -p hosts="http://127.0.0.1:2379" -s -P workloads/workloada -t
 ```
 size=10000
 
-bin/ycsb run etcd -p hosts="http://127.0.0.1:2379" -s -P workloads/workloada -threads 4 -p operationcount=$size -p recordcount=$size -p exportfile=/tmp/output.txt
+bin/ycsb run etcd -p hosts="http://127.0.0.1:2379" -s -P workloads/workloada -threads 4 -p operationcount=$size -p recordcount=$size -p exportfile=/tmp/output.txt -p dataintegrity=true
 ```
 
-## Issues
+## Data validation
+
+In the output.txt producted by 'run etcd', the following seciton shows up with "-p dataintegrity=true" in the run command above.
+
+```
+[VERIFY], Operations, 24993
+[VERIFY], AverageLatency(us), 28.84443644220382
+[VERIFY], MinLatency(us), 13
+[VERIFY], MaxLatency(us), 3593
+[VERIFY], 95thPercentileLatency(us), 43
+[VERIFY], 99thPercentileLatency(us), 60
+[VERIFY], Return=OK, 24993
+```
+This shows data binding is working correctly with the tests. Without dataintegrity (default to false), the [VERIFY] section does not show up, and random data is used for testing instead. 
+
+## Known Issues
 
 1. The shell CRUD commands take a key and a set of key value pairs. Doesn't seem to map directly to the key value pair of ETCD. Something is off (RESOLVED)
 
 2. Load test runs successfully but run test is failing. Need to understand what data is being used (RESOLVED)
 
-3. The "table" command is missing (may not need)
+3. Data is not validated correctly (RESOLVED)
+
+
+4. Diagnose etcd performance (TO DO)
