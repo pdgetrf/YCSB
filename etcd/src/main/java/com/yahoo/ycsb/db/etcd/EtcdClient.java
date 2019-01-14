@@ -19,6 +19,7 @@ package com.yahoo.ycsb.db.etcd;
 import com.coreos.jetcd.data.ByteSequence;
 import com.coreos.jetcd.data.KeyValue;
 import com.coreos.jetcd.kv.GetResponse;
+import com.coreos.jetcd.kv.PutResponse;
 import com.coreos.jetcd.options.GetOption;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.Status;
@@ -26,9 +27,8 @@ import com.yahoo.ycsb.StringByteIterator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -59,20 +59,31 @@ public class EtcdClient extends EtcdAbstractClient {
                      Map<String, ByteIterator> result) {
 
     try {
+
+      Map<CompletableFuture<GetResponse>, String> responseMap = new HashMap<>();
       for (String field : fields) {
         String path = "/" + key + "/" + field;
-        GetResponse getResponse = client.getKVClient().get(
+        CompletableFuture<GetResponse> futureResponse = client.getKVClient().get(
             ByteSequence.fromString(path),
             GetOption.newBuilder().withRevision(0).build()
-        ).get();
+        );
+        responseMap.put(futureResponse, field);
+      }
 
-        List<KeyValue> kvs = getResponse.getKvs();
+      // wait for all requests
+      List<CompletableFuture<GetResponse>> responseList = new ArrayList<>();
+      responseList.addAll(responseMap.keySet());
+      responseList.forEach(CompletableFuture::join);
+
+      for (Map.Entry<CompletableFuture<GetResponse>, String> entry : responseMap.entrySet()) {
+
+        List<KeyValue> kvs = entry.getKey().get().getKvs();
         if (kvs == null || kvs.isEmpty()) {
           return Status.NOT_FOUND;
         }
 
         String val = kvs.get(0).getValue().toString(UTF_8);
-        result.put(field, new StringByteIterator(val));
+        result.put(entry.getValue(), new StringByteIterator(val));
       }
 
     } catch (Exception e) {
@@ -119,13 +130,21 @@ public class EtcdClient extends EtcdAbstractClient {
     }
 
     try {
+      Map<CompletableFuture<PutResponse>, String> responseMap = new HashMap<>();
       for (String keyToInsert : values.keySet()) {
         String path = "/" + key + "/" + keyToInsert;
-        client.getKVClient().put(
+
+        CompletableFuture<PutResponse> futureResponse = client.getKVClient().put(
             ByteSequence.fromString(path),
             ByteSequence.fromString(values.get(keyToInsert).toString())
-        ).get();
+        );
+        responseMap.put(futureResponse, path);
       }
+
+      // wait for all requests
+      List<CompletableFuture<PutResponse>> responseList = new ArrayList<>();
+      responseList.addAll(responseMap.keySet());
+      responseList.forEach(CompletableFuture::join);
     } catch (Exception e) {
       log.error(String.format("Error inserting key: %s", key), e);
       return Status.ERROR;
