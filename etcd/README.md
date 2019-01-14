@@ -103,6 +103,10 @@ In the output.txt producted by 'run etcd', the following seciton shows up with "
 ```
 This shows data binding is working correctly with the tests. Without dataintegrity (default to false), the [VERIFY] section does not show up, and random data is used for testing instead. 
 
+## Performance tuning
+
+An initial tuning is in https://github.com/pdgetrf/YCSB/tree/add_etcd_binding_perf/etcd branch. Currently about 290 ops/sec.
+
 ## Known Issues
 
 1. The shell CRUD commands take a key and a set of key value pairs. Doesn't seem to map directly to the key value pair of ETCD. Something is off (RESOLVED)
