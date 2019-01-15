@@ -92,8 +92,8 @@ public class EtcdClient extends EtcdAbstractClient {
 
           Map<String, String> map = (HashMap<String, String>) deserialize(value);
           hotFields = new HashMap<>();
-          for (Map.Entry entry : map.entrySet()) {
-            hotFields.put(entry.getKey().toString(), new StringByteIterator(entry.getValue().toString()));
+          for (Map.Entry<String, String> entry : map.entrySet()) {
+            hotFields.put(entry.getKey(), new StringByteIterator(entry.getValue()));
           }
           localCache.put(key, hotFields);
         }
@@ -173,8 +173,8 @@ public class EtcdClient extends EtcdAbstractClient {
 
     try {
       Map<String, String> strMap = new HashMap<>();
-      for (Map.Entry entry : values.entrySet()) {
-        strMap.put(entry.getKey().toString(), entry.getValue().toString());
+      for (Map.Entry<String, ByteIterator> entry : values.entrySet()) {
+        strMap.put(entry.getKey(), entry.getValue().toString());
       }
 
       String value = serialize((Serializable) strMap);
