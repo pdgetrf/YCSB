@@ -59,22 +59,34 @@ public class EtcdClient extends EtcdAbstractClient {
                      Map<String, ByteIterator> result) {
 
     try {
-      for (String field : fields) {
-        String path = "/" + key + "/" + field;
-        GetResponse getResponse = client.getKVClient().get(
-            ByteSequence.fromString(path),
-            GetOption.newBuilder().withRevision(0).build()
-        ).get();
-
-        List<KeyValue> kvs = getResponse.getKvs();
-        if (kvs == null || kvs.isEmpty()) {
+      if (fields==null) {
+        String path = "/" + key + "/";
+        ByteSequence keySeq = ByteSequence.fromString(path);
+        GetOption option = GetOption.newBuilder()
+            .withPrefix(keySeq)
+            .build();
+        GetResponse response = client.getKVClient().get(keySeq, option).get();
+        if (response.getKvs().isEmpty()) {
+          log.info("Failed to retrieve any key.");
           return Status.NOT_FOUND;
         }
+      } else {
+        for (String field : fields) {
+          String path = "/" + key + "/" + field;
+          GetResponse getResponse = client.getKVClient().get(
+              ByteSequence.fromString(path),
+              GetOption.newBuilder().withRevision(0).build()
+          ).get();
 
-        String val = kvs.get(0).getValue().toString(UTF_8);
-        result.put(field, new StringByteIterator(val));
+          List<KeyValue> kvs = getResponse.getKvs();
+          if (kvs == null || kvs.isEmpty()) {
+            return Status.NOT_FOUND;
+          }
+
+          String val = kvs.get(0).getValue().toString(UTF_8);
+          result.put(field, new StringByteIterator(val));
+        }
       }
-
     } catch (Exception e) {
       log.error(String.format("Error reading key: %s", key), e);
       return Status.ERROR;
