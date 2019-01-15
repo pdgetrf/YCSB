@@ -180,12 +180,9 @@ public class EtcdClient extends EtcdAbstractClient {
       String value = serialize((Serializable) strMap);
 
       // invalidated cache if needed
-      /*
-      if (localCache.containsKey(key) &&
-          !localCache.get(key).toString().equals(value)) {
+      if (localCache.containsKey(key)) {
         localCache.remove(key);
       }
-      */
 
       client.getKVClient().put(
           ByteSequence.fromString(key),
@@ -207,24 +204,8 @@ public class EtcdClient extends EtcdAbstractClient {
    */
   @Override
   public Status delete(String table, String key) {
-
-    String path = "/" + key + "/";
-    ByteSequence keySeq = ByteSequence.fromString(path);
-
-    GetOption option = GetOption.newBuilder()
-        .withPrefix(keySeq)
-        .build();
-
     try {
-      GetResponse response = client.getKVClient().get(keySeq, option).get();
-      if (response.getKvs().isEmpty()) {
-        log.info("Failed to retrieve any key.");
-        return null;
-      }
-
-      for (KeyValue kv : response.getKvs()) {
-        client.getKVClient().delete(kv.getKey()).get();
-      }
+      client.getKVClient().delete(ByteSequence.fromString(key)).get();
       return Status.OK;
     } catch (Exception e) {
       log.error(String.format("Error deleting key: %s ", key), e);
