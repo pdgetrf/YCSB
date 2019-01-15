@@ -60,13 +60,28 @@ public class EtcdClient extends EtcdAbstractClient {
 
     try {
       Map<CompletableFuture<GetResponse>, String> responseMap = new HashMap<>();
-      for (String field : fields) {
-        String path = "/" + key + "/" + field;
-        CompletableFuture<GetResponse> futureResponse = client.getKVClient().get(
-            ByteSequence.fromString(path),
-            GetOption.newBuilder().withRevision(0).build()
-        );
-        responseMap.put(futureResponse, field);
+
+      if (fields==null) {
+        String path = "/" + key + "/";
+        ByteSequence keySeq = ByteSequence.fromString(path);
+        GetOption option = GetOption.newBuilder()
+            .withPrefix(keySeq)
+            .build();
+
+        GetResponse response = client.getKVClient().get(keySeq, option).get();
+        if (response.getKvs().isEmpty()) {
+          log.info("Failed to retrieve any key.");
+          return null;
+        }
+      } else {
+        for (String field : fields) {
+          String path = "/" + key + "/" + field;
+          CompletableFuture<GetResponse> futureResponse = client.getKVClient().get(
+              ByteSequence.fromString(path),
+              GetOption.newBuilder().withRevision(0).build()
+          );
+          responseMap.put(futureResponse, field);
+        }
       }
 
       // wait for all requests
