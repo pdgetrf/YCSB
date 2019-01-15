@@ -27,8 +27,12 @@ import com.yahoo.ycsb.StringByteIterator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.google.common.base.Charsets.UTF_8;
 
@@ -43,6 +47,8 @@ public class EtcdClient extends EtcdAbstractClient {
    *
    */
   private static Logger log = LogManager.getLogger(EtcdClient.class);
+
+  private final ConcurrentHashMap<String, StringByteIterator> localCache = new ConcurrentHashMap<>();
 
   /**
    * Read a record from the database. Each field/value pair from the result will
@@ -76,11 +82,15 @@ public class EtcdClient extends EtcdAbstractClient {
       } else {
         for (String field : fields) {
           String path = "/" + key + "/" + field;
-          CompletableFuture<GetResponse> futureResponse = client.getKVClient().get(
-              ByteSequence.fromString(path),
-              GetOption.newBuilder().withRevision(0).build()
-          );
-          responseMap.put(futureResponse, field);
+          if (!localCache.containsKey(path)) {
+            CompletableFuture<GetResponse> futureResponse = client.getKVClient().get(
+                ByteSequence.fromString(path),
+                GetOption.newBuilder().withRevision(0).build()
+            );
+            responseMap.put(futureResponse, field);
+          } else {
+            result.put(field, localCache.get(path));
+          }
         }
       }
 
@@ -95,8 +105,10 @@ public class EtcdClient extends EtcdAbstractClient {
           return Status.NOT_FOUND;
         }
 
-        String val = kvs.get(0).getValue().toString(UTF_8);
-        result.put(entry.getValue(), new StringByteIterator(val));
+        StringByteIterator val = new StringByteIterator(kvs.get(0).getValue().toString(UTF_8));
+        String path = "/" + key + "/" + entry.getValue();
+        result.put(entry.getValue(), val);
+        localCache.put(path, val);
       }
     } catch (Exception e) {
       log.error(String.format("Error reading key: %s", key), e);
@@ -144,6 +156,12 @@ public class EtcdClient extends EtcdAbstractClient {
       Map<CompletableFuture<PutResponse>, String> responseMap = new HashMap<>();
       for (String keyToInsert : values.keySet()) {
         String path = "/" + key + "/" + keyToInsert;
+
+        // invalidated cache if needed
+        if (localCache.containsKey(path) &&
+            !localCache.get(path).toString().equals(values.get(keyToInsert).toString())) {
+          localCache.remove(path);
+        }
 
         CompletableFuture<PutResponse> futureResponse = client.getKVClient().put(
             ByteSequence.fromString(path),
