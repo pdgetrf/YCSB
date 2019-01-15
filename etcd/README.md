@@ -105,7 +105,11 @@ This shows data binding is working correctly with the tests. Without dataintegri
 
 ## Performance tuning
 
-An initial tuning is in https://github.com/pdgetrf/YCSB/tree/add_etcd_binding_perf/etcd branch. Currently about 290 ops/sec.
+1. An initial tuning is in https://github.com/pdgetrf/YCSB/tree/add_etcd_binding_perf/etcd branch. Reached about 290 ops/sec
+
+2. Added a local cache. ~320 ops/sec
+
+3. Add buik (https://github.com/pdgetrf/YCSB/tree/add_etcd_binding_perf_bulk/etcd), Reached about 360 ops/sec
 
 ## Known Issues
 
