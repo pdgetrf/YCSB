@@ -1,18 +1,17 @@
 /**
  * Copyright (c) 2013-2018 YCSB contributors. All rights reserved.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
  * License for the specific language governing permissions and limitations under
  * the License. See accompanying LICENSE file.
- *
  */
 package com.yahoo.ycsb.db.etcd;
 
@@ -25,7 +24,10 @@ import com.yahoo.ycsb.Status;
 import com.yahoo.ycsb.StringByteIterator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +46,8 @@ public class EtcdClient extends EtcdAbstractClient {
    */
   private static Logger log = LogManager.getLogger(EtcdClient.class);
 
+  private ObjectMapper mapper = new ObjectMapper();
+
   /**
    * Read a record from the database. Each field/value pair from the result will
    * be stored in a HashMap.
@@ -59,22 +63,25 @@ public class EtcdClient extends EtcdAbstractClient {
                      Map<String, ByteIterator> result) {
 
     try {
-      for (String field : fields) {
-        String path = "/" + key + "/" + field;
-        GetResponse getResponse = client.getKVClient().get(
-            ByteSequence.fromString(path),
-            GetOption.newBuilder().withRevision(0).build()
-        ).get();
+      String path = "/" + key;
+      GetResponse getResponse = client.getKVClient().get(
+          ByteSequence.fromString(path),
+          GetOption.newBuilder().withRevision(0).build()
+      ).get();
 
-        List<KeyValue> kvs = getResponse.getKvs();
-        if (kvs == null || kvs.isEmpty()) {
-          return Status.NOT_FOUND;
-        }
-
-        String val = kvs.get(0).getValue().toString(UTF_8);
-        result.put(field, new StringByteIterator(val));
+      List<KeyValue> kvs = getResponse.getKvs();
+      if (kvs == null || kvs.isEmpty()) {
+        return Status.NOT_FOUND;
       }
 
+      String jsonStr = kvs.get(0).getValue().toString(UTF_8);
+      HashMap<String, String> map = new HashMap<String, String>();
+      map = mapper.readValue(jsonStr, new TypeReference<HashMap<String, String>>() {
+      });
+
+      for (Map.Entry<String, String> en : map.entrySet()) {
+        result.put(en.getKey(), new StringByteIterator(en.getValue()));
+      }
     } catch (Exception e) {
       log.error(String.format("Error reading key: %s", key), e);
       return Status.ERROR;
@@ -119,13 +126,16 @@ public class EtcdClient extends EtcdAbstractClient {
     }
 
     try {
-      for (String keyToInsert : values.keySet()) {
-        String path = "/" + key + "/" + keyToInsert;
-        client.getKVClient().put(
-            ByteSequence.fromString(path),
-            ByteSequence.fromString(values.get(keyToInsert).toString())
-        ).get();
+      // TODO: needs a more efficient way to convert 
+      // ByteIterator to String.
+      Map<String, String> map = new HashMap<String, String>();
+      for (Map.Entry<String, ByteIterator> en : values.entrySet()) {
+        map.put(en.getKey(), en.getValue().toString());
       }
+
+      String jsonStr = mapper.writeValueAsString(map);
+      String path = "/" + key;
+      client.getKVClient().put(ByteSequence.fromString(path), ByteSequence.fromString(jsonStr)).get();
     } catch (Exception e) {
       log.error(String.format("Error inserting key: %s", key), e);
       return Status.ERROR;
