@@ -19,7 +19,6 @@ package com.yahoo.ycsb.db.etcd;
 import com.coreos.jetcd.data.ByteSequence;
 import com.coreos.jetcd.data.KeyValue;
 import com.coreos.jetcd.kv.GetResponse;
-import com.coreos.jetcd.kv.PutResponse;
 import com.coreos.jetcd.options.GetOption;
 import com.yahoo.ycsb.ByteIterator;
 import com.yahoo.ycsb.Status;
@@ -27,14 +26,9 @@ import com.yahoo.ycsb.StringByteIterator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.io.*;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static com.google.common.base.Charsets.UTF_8;
 
 
 /**
@@ -48,7 +42,7 @@ public class EtcdClient extends EtcdAbstractClient {
    */
   private static Logger log = LogManager.getLogger(EtcdClient.class);
 
-  private final ConcurrentHashMap<String, StringByteIterator> localCache = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, HashMap<String, StringByteIterator>> localCache = new ConcurrentHashMap<>();
 
   /**
    * Read a record from the database. Each field/value pair from the result will
@@ -65,9 +59,7 @@ public class EtcdClient extends EtcdAbstractClient {
                      Map<String, ByteIterator> result) {
 
     try {
-      Map<CompletableFuture<GetResponse>, String> responseMap = new HashMap<>();
-
-      if (fields==null) {
+      if (fields == null) {
         String path = "/" + key + "/";
         ByteSequence keySeq = ByteSequence.fromString(path);
         GetOption option = GetOption.newBuilder()
@@ -80,40 +72,49 @@ public class EtcdClient extends EtcdAbstractClient {
           return null;
         }
       } else {
-        for (String field : fields) {
-          String path = "/" + key + "/" + field;
-          if (!localCache.containsKey(path)) {
-            CompletableFuture<GetResponse> futureResponse = client.getKVClient().get(
-                ByteSequence.fromString(path),
-                GetOption.newBuilder().withRevision(0).build()
-            );
-            responseMap.put(futureResponse, field);
-          } else {
-            result.put(field, localCache.get(path));
+        String value = null;
+        HashMap<String, StringByteIterator> hotFields = null;
+
+        // get value from local cache or etcd
+        if (localCache.containsKey(key)) {
+          hotFields = localCache.get(key);
+        } else {
+          GetResponse response = client.getKVClient().get(
+              ByteSequence.fromString(key),
+              GetOption.newBuilder().withRevision(0).build()
+          ).get();
+
+          List<KeyValue> kvs = response.getKvs();
+          if (kvs==null || kvs.isEmpty()) {
+            return Status.NOT_FOUND;
+          }
+          value = kvs.get(0).getValue().toStringUtf8();
+
+          Map<String, String> map = (HashMap<String, String>) deserialize(value);
+          hotFields = new HashMap<>();
+          for (Map.Entry entry : map.entrySet()) {
+            hotFields.put(entry.getKey().toString(), new StringByteIterator(entry.getValue().toString()));
+          }
+          localCache.put(key, hotFields);
+        }
+
+        // find fields from value map
+        boolean found = false;
+        for (String field: fields) {
+          if (hotFields.containsKey(field)) {
+            result.put(field, hotFields.get(field));
+            found = true;
           }
         }
-      }
-
-      // wait for all requests
-      responseMap.keySet().forEach(CompletableFuture::join);
-
-      // create the result
-      for (Map.Entry<CompletableFuture<GetResponse>, String> entry : responseMap.entrySet()) {
-
-        List<KeyValue> kvs = entry.getKey().get().getKvs();
-        if (kvs == null || kvs.isEmpty()) {
+        if (!found) {
           return Status.NOT_FOUND;
         }
-
-        StringByteIterator val = new StringByteIterator(kvs.get(0).getValue().toString(UTF_8));
-        String path = "/" + key + "/" + entry.getValue();
-        result.put(entry.getValue(), val);
-        localCache.put(path, val);
       }
     } catch (Exception e) {
       log.error(String.format("Error reading key: %s", key), e);
       return Status.ERROR;
     }
+
     return Status.OK;
   }
 
@@ -132,6 +133,24 @@ public class EtcdClient extends EtcdAbstractClient {
                        Map<String, ByteIterator> values) {
 
     return insert(table, key, values);
+  }
+
+  private static String serialize(Serializable o) throws IOException {
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    ObjectOutputStream oos = new ObjectOutputStream(baos);
+    oos.writeObject(o);
+    oos.close();
+    return Base64.getEncoder().encodeToString(baos.toByteArray());
+  }
+
+  private static Object deserialize(String s) throws IOException,
+      ClassNotFoundException {
+    byte[] data = Base64.getDecoder().decode(s);
+    ObjectInputStream ois = new ObjectInputStream(
+        new ByteArrayInputStream(data));
+    Object o = ois.readObject();
+    ois.close();
+    return o;
   }
 
   /**
@@ -153,25 +172,25 @@ public class EtcdClient extends EtcdAbstractClient {
     }
 
     try {
-      Map<CompletableFuture<PutResponse>, String> responseMap = new HashMap<>();
-      for (String keyToInsert : values.keySet()) {
-        String path = "/" + key + "/" + keyToInsert;
-
-        // invalidated cache if needed
-        if (localCache.containsKey(path) &&
-            !localCache.get(path).toString().equals(values.get(keyToInsert).toString())) {
-          localCache.remove(path);
-        }
-
-        CompletableFuture<PutResponse> futureResponse = client.getKVClient().put(
-            ByteSequence.fromString(path),
-            ByteSequence.fromString(values.get(keyToInsert).toString())
-        );
-        responseMap.put(futureResponse, path);
+      Map<String, String> strMap = new HashMap<>();
+      for (Map.Entry entry : values.entrySet()) {
+        strMap.put(entry.getKey().toString(), entry.getValue().toString());
       }
 
-      // wait for all requests
-      responseMap.keySet().forEach(CompletableFuture::join);
+      String value = serialize((Serializable) strMap);
+
+      // invalidated cache if needed
+      /*
+      if (localCache.containsKey(key) &&
+          !localCache.get(key).toString().equals(value)) {
+        localCache.remove(key);
+      }
+      */
+
+      client.getKVClient().put(
+          ByteSequence.fromString(key),
+          ByteSequence.fromString(value)
+      ).get();
     } catch (Exception e) {
       log.error(String.format("Error inserting key: %s", key), e);
       return Status.ERROR;
