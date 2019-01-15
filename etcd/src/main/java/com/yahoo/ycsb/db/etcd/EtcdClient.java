@@ -42,7 +42,7 @@ public class EtcdClient extends EtcdAbstractClient {
    */
   private static Logger log = LogManager.getLogger(EtcdClient.class);
 
-  private final ConcurrentHashMap<String, HashMap<String, StringByteIterator>> localCache = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, StringByteIterator> localCache = new ConcurrentHashMap<>();
 
   /**
    * Read a record from the database. Each field/value pair from the result will
@@ -72,42 +72,34 @@ public class EtcdClient extends EtcdAbstractClient {
           return null;
         }
       } else {
-        String value = null;
-        HashMap<String, StringByteIterator> hotFields = null;
+        for (String field : fields) {
 
-        // get value from local cache or etcd
-        if (localCache.containsKey(key)) {
-          hotFields = localCache.get(key);
-        } else {
-          GetResponse response = client.getKVClient().get(
-              ByteSequence.fromString(key),
-              GetOption.newBuilder().withRevision(0).build()
-          ).get();
+          String cachePath = key+field;
+          if (localCache.containsKey(field)) {
+            result.put(field, localCache.get(field));
+          } else {
+            GetResponse response = client.getKVClient().get(
+                ByteSequence.fromString(key),
+                GetOption.newBuilder().withRevision(0).build()
+            ).get();
 
-          List<KeyValue> kvs = response.getKvs();
-          if (kvs==null || kvs.isEmpty()) {
-            return Status.NOT_FOUND;
+            List<KeyValue> kvs = response.getKvs();
+            if (kvs==null || kvs.isEmpty()) {
+              return Status.NOT_FOUND;
+            }
+
+            String value = kvs.get(0).getValue().toStringUtf8();
+
+            Map<String, String> map = (HashMap<String, String>) deserialize(value);
+
+            if (!map.containsKey(field)) {
+              return Status.NOT_FOUND;
+            }
+
+            StringByteIterator obj = new StringByteIterator((map.get(field)));
+            result.put(field, obj);
+            localCache.put(cachePath, obj);
           }
-          value = kvs.get(0).getValue().toStringUtf8();
-
-          Map<String, String> map = (HashMap<String, String>) deserialize(value);
-          hotFields = new HashMap<>();
-          for (Map.Entry entry : map.entrySet()) {
-            hotFields.put(entry.getKey().toString(), new StringByteIterator(entry.getValue().toString()));
-          }
-          localCache.put(key, hotFields);
-        }
-
-        // find fields from value map
-        boolean found = false;
-        for (String field: fields) {
-          if (hotFields.containsKey(field)) {
-            result.put(field, hotFields.get(field));
-            found = true;
-          }
-        }
-        if (!found) {
-          return Status.NOT_FOUND;
         }
       }
     } catch (Exception e) {
@@ -132,7 +124,41 @@ public class EtcdClient extends EtcdAbstractClient {
   public Status update(String table, String key,
                        Map<String, ByteIterator> values) {
 
-    return insert(table, key, values);
+    try {
+      GetResponse response = client.getKVClient().get(
+          ByteSequence.fromString(key),
+          GetOption.newBuilder().withRevision(0).build()
+      ).get();
+      List<KeyValue> kvs = response.getKvs();
+      if (kvs == null || kvs.isEmpty()) {
+        return Status.NOT_FOUND;
+      }
+      String value = kvs.get(0).getValue().toStringUtf8();
+      Map<String, String> map = (HashMap<String, String>) deserialize(value);
+
+      for (Map.Entry entry : values.entrySet()) {
+        String fieldValue = entry.getValue().toString();
+        String fieldKey = entry.getKey().toString();
+
+        map.put(fieldKey, fieldValue);
+
+        String cachePath = key+fieldKey;
+        if (localCache.containsKey(cachePath) && !localCache.get(cachePath).toString().equals(fieldValue)) {
+          localCache.remove(cachePath);
+        }
+      }
+
+      String mapObj = serialize((Serializable) map);
+      client.getKVClient().put(
+          ByteSequence.fromString(key),
+          ByteSequence.fromString(mapObj)
+      ).get();
+
+    } catch (Exception e) {
+      log.error(String.format("Error updating key: %s with %s", key, values.toString()), e);
+      return Status.ERROR;
+    }
+    return Status.OK;
   }
 
   private static String serialize(Serializable o) throws IOException {
@@ -173,19 +199,18 @@ public class EtcdClient extends EtcdAbstractClient {
 
     try {
       Map<String, String> strMap = new HashMap<>();
+
       for (Map.Entry entry : values.entrySet()) {
-        strMap.put(entry.getKey().toString(), entry.getValue().toString());
-      }
+        String fieldValue = entry.getValue().toString();
+        String fieldKey = entry.getKey().toString();
 
+        String cachePath = key+fieldKey;
+        strMap.put(fieldKey, fieldValue);
+        if (localCache.containsKey(cachePath) && !localCache.get(cachePath).toString().equals(fieldValue)) {
+          localCache.remove(cachePath);
+        }
+      }
       String value = serialize((Serializable) strMap);
-
-      // invalidated cache if needed
-      /*
-      if (localCache.containsKey(key) &&
-          !localCache.get(key).toString().equals(value)) {
-        localCache.remove(key);
-      }
-      */
 
       client.getKVClient().put(
           ByteSequence.fromString(key),
@@ -208,27 +233,12 @@ public class EtcdClient extends EtcdAbstractClient {
   @Override
   public Status delete(String table, String key) {
 
-    String path = "/" + key + "/";
-    ByteSequence keySeq = ByteSequence.fromString(path);
-
-    GetOption option = GetOption.newBuilder()
-        .withPrefix(keySeq)
-        .build();
-
     try {
-      GetResponse response = client.getKVClient().get(keySeq, option).get();
-      if (response.getKvs().isEmpty()) {
-        log.info("Failed to retrieve any key.");
-        return null;
-      }
-
-      for (KeyValue kv : response.getKvs()) {
-        client.getKVClient().delete(kv.getKey()).get();
-      }
-      return Status.OK;
+      client.getKVClient().delete(ByteSequence.fromString(key)).get();
     } catch (Exception e) {
       log.error(String.format("Error deleting key: %s ", key), e);
       return Status.ERROR;
     }
+    return Status.OK;
   }
 }
